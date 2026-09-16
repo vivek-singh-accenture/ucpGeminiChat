@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UCP Shopping Assistant</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --surface: #f0f4f9;
+    --border: #dadce0;
+    --text: #1f1f1f;
+    --text-secondary: #5f6368;
+    --blue: #1a73e8;
+    --blue-light: #e8f0fe;
+    --green: #188038;
+    --purple: #7c3aed;
+    --purple-light: #ede9fe;
+    --yellow: #b45309;
+    --yellow-light: #fef3c7;
+    --red: #d93025;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-logo { font-size: 18px; font-weight: 500; color: var(--text); }
+  .header-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 1px; }
+  .new-chat-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    font-size: 14px; color: var(--text); cursor: pointer;
+    font-family: inherit;
+  }
+  .new-chat-btn:hover { background: var(--surface); }
+
+  /* ── Chat area ── */
+  .chat-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 16px 8px;
+    scroll-behavior: smooth;
+  }
+  .chat-column {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  /* ── Greeting ── */
+  .greeting {
+    text-align: center;
+    padding: 40px 0 32px;
+  }
+  .greeting-star { margin-bottom: 16px; }
+  .greeting h1 {
+    font-size: 28px; font-weight: 400; color: transparent;
+    background: linear-gradient(90deg, #4285f4, #9c4dcc, #ea4335);
+    -webkit-background-clip: text; background-clip: text;
+    margin-bottom: 8px;
+  }
+  .greeting p { font-size: 15px; color: var(--text-secondary); }
+
+  /* ── URL phase chips ── */
+  .url-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  .url-chip {
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 8px 18px; font-size: 13px; cursor: pointer;
+    background: var(--bg); color: var(--blue); font-family: inherit;
+    transition: background 0.15s;
+  }
+  .url-chip:hover { background: var(--blue-light); }
+
+  /* ── Messages ── */
+  .msg-group { margin: 4px 0; }
+
+  .ai-msg { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; }
+  .ai-icon { width: 32px; height: 32px; flex-shrink: 0; margin-top: 2px; }
+  .ai-body { flex: 1; min-width: 0; }
+  .ai-text {
+    font-size: 15px; line-height: 1.7; color: var(--text);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .ai-text.streaming::after {
+    content: '▋';
+    animation: blink 0.85s step-start infinite;
+    color: var(--blue);
+    margin-left: 1px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .user-msg { display: flex; justify-content: flex-end; padding: 8px 0; }
+  .user-bubble {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 10px 18px;
+    max-width: 75%;
+    font-size: 15px;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  /* ── Thinking / UCP trace ── */
+  .thinking {
+    margin: 4px 0 4px 44px;
+    border-left: 2px solid var(--border);
+    padding-left: 12px;
+  }
+  .thinking-header {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+    padding: 3px 0;
+  }
+  .thinking-header:hover { color: var(--text); }
+  .thinking-caret {
+    font-size: 10px; transition: transform 0.2s;
+    display: inline-block;
+  }
+  .thinking.open .thinking-caret { transform: rotate(90deg); }
+  .thinking-body { display: none; }
+  .thinking.open .thinking-body { display: block; }
+
+  .trace-row {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 3px 0; font-size: 12px; font-family: 'Menlo', 'Consolas', monospace;
+    cursor: pointer;
+  }
+  .trace-row:hover .trace-summary { text-decoration: underline; }
+  .trace-icon { font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+  .trace-summary { flex: 1; }
+
+  .trace-ucp .trace-icon { color: var(--blue); }
+  .trace-ucp .trace-summary { color: var(--blue); }
+  .trace-intersection .trace-icon { color: var(--purple); }
+  .trace-intersection .trace-summary { color: var(--purple); }
+  .trace-tool-call .trace-icon { color: var(--yellow); }
+  .trace-tool-call .trace-summary { color: var(--yellow); }
+  .trace-tool-result .trace-icon { color: var(--green); }
+  .trace-tool-result .trace-summary { color: var(--green); }
+
+  .trace-detail {
+    display: none;
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 8px;
+    margin: 2px 0 4px 20px;
+    font-size: 11px; font-family: 'Menlo', 'Consolas', monospace;
+    color: #444;
+    max-height: 200px; overflow-y: auto;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+  }
+  .trace-detail.open { display: block; }
+
+  /* ── Product cards ── */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 8px 0;
+  }
+  .product-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    background: var(--bg);
+    transition: box-shadow 0.15s;
+  }
+  .product-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .product-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .product-price { font-size: 16px; font-weight: 600; color: var(--blue); margin-bottom: 6px; }
+  .product-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 8px; }
+  .product-badge {
+    display: inline-block; font-size: 11px; padding: 2px 8px;
+    border-radius: 12px; background: #e6f4ea; color: var(--green); font-weight: 500;
+  }
+  .product-badge.out { background: #fce8e6; color: var(--red); }
+
+  /* ── Payment card ── */
+  .payment-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    max-width: 420px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    margin: 8px 0;
+    background: var(--bg);
+  }
+  .payment-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .payment-header h3 { font-size: 16px; font-weight: 500; }
+  .payment-total { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+  .payment-methods { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .payment-option {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .payment-option:has(input:checked) {
+    border-color: var(--blue);
+    background: var(--blue-light);
+  }
+  .payment-option input[type=radio] { accent-color: var(--blue); }
+  .pm-brand { font-weight: 600; font-size: 13px; min-width: 90px; }
+  .pm-detail { font-size: 13px; color: var(--text-secondary); }
+  .pay-btn {
+    width: 100%; padding: 13px;
+    background: var(--blue); color: #fff;
+    border: none; border-radius: 24px;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .pay-btn:hover { background: #1557b0; }
+  .pay-btn:disabled { background: #9aa0a6; cursor: default; }
+  .pay-btn.processing { background: #9aa0a6; }
+
+  /* ── Order confirmation ── */
+  .order-card {
+    border: 1.5px solid #c3e6cb;
+    border-radius: var(--radius);
+    padding: 20px;
+    max-width: 420px;
+    background: #f0fdf4;
+    margin: 8px 0;
+  }
+  .order-success { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .order-check {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--green); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .order-title { font-size: 16px; font-weight: 600; color: var(--green); }
+  .order-id { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-family: monospace; }
+  .order-items { margin-bottom: 12px; }
+  .order-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; font-size: 14px;
+    border-bottom: 1px solid #d1fae5;
+  }
+  .order-item:last-child { border-bottom: none; }
+  .order-total {
+    display: flex; justify-content: space-between;
+    font-size: 15px; font-weight: 600;
+    padding-top: 10px; margin-top: 4px;
+    border-top: 1.5px solid #c3e6cb;
+  }
+  .order-delivery { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+
+  /* ── Suggestion chips ── */
+  .chips-wrap {
+    padding: 8px 16px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    flex-shrink: 0;
+    border-top: 1px solid transparent;
+  }
+  .chip {
+    border: 1px solid var(--border); border-radius: 18px;
+    padding: 6px 14px; font-size: 13px; cursor: pointer;
+    background: var(--bg); color: var(--text);
+    font-family: inherit; transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .chip:hover { background: var(--surface); }
+
+  /* ── Input bar ── */
+  .input-area {
+    padding: 8px 16px 20px;
+    flex-shrink: 0;
+  }
+  .input-wrap {
+    max-width: 720px; margin: 0 auto;
+    display: flex; align-items: flex-end; gap: 8px;
+    background: var(--surface);
+    border: 1.5px solid var(--surface);
+    border-radius: 28px;
+    padding: 10px 8px 10px 18px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .input-wrap:focus-within {
+    background: var(--bg);
+    border-color: var(--blue);
+  }
+  #msgInput {
+    flex: 1; border: none; background: transparent;
+    font-size: 15px; outline: none; resize: none;
+    font-family: inherit; line-height: 1.5;
+    max-height: 120px; min-height: 24px;
+    color: var(--text);
+  }
+  #msgInput::placeholder { color: var(--text-secondary); }
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--blue); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .send-btn:disabled { background: var(--surface); opacity: 0.5; cursor: default; }
+  .send-btn svg { fill: #fff; }
+  .send-btn:disabled svg { fill: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <svg class="ai-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2.5C16 2.5 16 13.5 5 15C16 16.5 16 27.5 16 27.5C16 27.5 16 16.5 27 15C16 13.5 16 2.5 16 2.5Z"
+            fill="url(#hdr-grad)"/>
+      <defs>
+        <linearGradient id="hdr-grad" x1="5" y1="15" x2="27" y2="15" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#4285f4"/>
+          <stop offset="50%" stop-color="#9c4dcc"/>
+          <stop offset="100%" stop-color="#ea4335"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div>
+      <div class="header-logo">UCP Shopping Assistant</div>
+      <div class="header-subtitle">Powered by Gemini · Universal Commerce Protocol</div>
+    </div>
+  </div>
+  <button class="new-chat-btn" onclick="newConversation()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 5v14M5 12h14"/>
+    </svg>
+    New chat
+  </button>
+</header>
+
+<!-- Chat -->
+<div class="chat-wrap" id="chatWrap">
+  <div class="chat-column" id="chatCol">
+
+    <!-- Greeting -->
+    <div class="greeting" id="greeting">
+      <div class="greeting-star">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 3.5C24 3.5 24 20.5 7 23C24 25.5 24 44.5 24 44.5C24 44.5 24 25.5 41 23C24 20.5 24 3.5 24 3.5Z"
+                fill="url(#main-grad)"/>
+          <defs>
+            <linearGradient id="main-grad" x1="7" y1="24" x2="41" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#4285f4"/>
+              <stop offset="50%" stop-color="#9c4dcc"/>
+              <stop offset="100%" stop-color="#ea4335"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h1>Hello! Let's go shopping.</h1>
+      <p>Paste the URL of a UCP-compatible store, and I'll help you find products,<br>manage your cart, and complete checkout — all in one conversation.</p>
+      <div class="url-chips">
+        <button class="url-chip" onclick="sendMessage('http://localhost:8080')">http://localhost:8080 (local demo)</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Suggestion chips -->
+<div class="chips-wrap" id="chipsWrap">
+  <button class="chip" id="chip-url" onclick="sendMessage('http://localhost:8080')">Connect to local demo store</button>
+  <button class="chip" id="chip-search" onclick="sendMessage('Find me headphones')" disabled style="opacity:0.4;cursor:default">Find me headphones</button>
+  <button class="chip" id="chip-available" onclick="sendMessage('What products do you have?')" disabled style="opacity:0.4;cursor:default">What\'s available?</button>
+  <button class="chip" id="chip-cart" onclick="sendMessage('Add it to my cart')" disabled style="opacity:0.4;cursor:default">Add to cart</button>
+  <button class="chip" id="chip-checkout" onclick="sendMessage('I\'d like to checkout')" disabled style="opacity:0.4;cursor:default">Checkout</button>
+</div>
+
+<!-- Input -->
+<div class="input-area">
+  <div class="input-wrap">
+    <textarea id="msgInput" placeholder="Message UCP Shopping Assistant..." rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="submitInput()" disabled>
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 21L23 12 2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  const conversationId = crypto.randomUUID();
+  let isStreaming = false;
+
+  // DOM refs
+  const chatCol = document.getElementById('chatCol');
+  const chatWrap = document.getElementById('chatWrap');
+  const msgInput = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const greeting = document.getElementById('greeting');
+
+  // Per-turn state
+  let currentThinking = null;
+  let currentAiBubble = null;
+  let currentAiText = null;
+  let thinkingStepCount = 0;
+
+  msgInput.addEventListener('input', () => {
+    sendBtn.disabled = !msgInput.value.trim() || isStreaming;
+  });
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitInput(); }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function submitInput() {
+    const msg = msgInput.value.trim();
+    if (!msg || isStreaming) return;
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    sendMessage(msg);
+  }
+
+  async function sendMessage(text) {
+    if (isStreaming) return;
+    isStreaming = true;
+    sendBtn.disabled = true;
+
+    // Hide greeting after first message
+    if (greeting) greeting.style.display = 'none';
+
+    // User bubble
+    appendUserMsg(text);
+
+    // Start AI turn
+    startTurn();
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, conversationId }),
+      });
+      await readSSEStream(resp);
+    } catch (err) {
+      appendAiText(`Error: ${err.message}`);
+      finalizeTurn();
+    }
+  }
+
+  async function readSSEStream(resp) {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        const lines = part.split('\n');
+        let eventType = 'message';
+        let dataStr = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+          else if (line.startsWith('data: ')) dataStr += line.slice(6);
+        }
+        if (!dataStr) continue;
+        try {
+          const data = JSON.parse(dataStr);
+          dispatchEvent(eventType, data);
+        } catch {}
+      }
+    }
+  }
+
+  function dispatchEvent(type, data) {
+    switch (type) {
+      case 'ucp_discovery':    handleDiscovery(data); break;
+      case 'ucp_intersection': handleIntersection(data); break;
+      case 'tool_use':         handleToolUse(data); break;
+      case 'tool_result':      handleToolResult(data); break;
+      case 'text':             handleText(data); break;
+      case 'payment_request':  handlePaymentRequest(data); break;
+      case 'order_confirmed':  handleOrderConfirmed(data); break;
+      case 'done':             handleDone(); break;
+    }
+  }
+
+  // ── Event handlers ──────────────────────────────────────────────────────────
+
+  function handleDiscovery(data) {
+    const caps = (data.storeCapabilities || []).length;
+    addTraceRow('trace-ucp', '🔍',
+      `GET /.well-known/ucp → ${caps} capabilities (UCP ${data.ucpVersion || ''})`,
+      data);
+
+    // Unlock shopping chips now that a merchant is connected
+    ['chip-search','chip-available','chip-cart','chip-checkout'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; }
+    });
+    const urlChip = document.getElementById('chip-url');
+    if (urlChip) urlChip.style.display = 'none';
+  }
+
+  function handleIntersection(data) {
+    const n = (data.intersection || []).length;
+    addTraceRow('trace-intersection', '⚡',
+      `Capability intersection: ${n} matched`,
+      data);
+  }
+
+  function handleToolUse(data) {
+    const argStr = summariseArgs(data.arguments || {});
+    addTraceRow('trace-tool-call', '⚙',
+      `${data.name}(${argStr})`,
+      data.arguments);
+  }
+
+  function handleToolResult(data) {
+    const summary = summariseResult(data.result || {});
+    addTraceRow('trace-tool-result', '✓',
+      `${data.name} → ${summary}`,
+      data.result);
+
+    // Render product grid if this is a search result
+    const result = data.result || {};
+    const products = result.products;
+    if (Array.isArray(products) && products.length > 0 && data.name === 'search_catalog') {
+      renderProductGrid(products);
+    }
+  }
+
+  function handleText(data) {
+    if (!currentAiBubble) {
+      currentAiBubble = document.createElement('div');
+      currentAiBubble.className = 'ai-msg';
+      currentAiBubble.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text streaming"></div></div>`;
+      chatCol.appendChild(currentAiBubble);
+      currentAiText = currentAiBubble.querySelector('.ai-text');
+    }
+    currentAiText.textContent += data.chunk || '';
+    scrollBottom();
+  }
+
+  function handlePaymentRequest(data) {
+    finalizeAiBubble();
+    renderPaymentCard(data);
+    isStreaming = false;
+    sendBtn.disabled = !msgInput.value.trim();
+  }
+
+  function handleOrderConfirmed(data) {
+    renderOrderCard(data);
+    scrollBottom();
+  }
+
+  function handleDone() {
+    finalizeAiBubble();
+    finalizeTurn();
+    isStreaming = false;
+    sendBtn.disabled = !msgInput.value.trim();
+  }
+
+  // ── UI builders ─────────────────────────────────────────────────────────────
+
+  function appendUserMsg(text) {
+    const el = document.createElement('div');
+    el.className = 'msg-group';
+    el.innerHTML = `<div class="user-msg"><div class="user-bubble">${escHtml(text)}</div></div>`;
+    chatCol.appendChild(el);
+    scrollBottom();
+  }
+
+  function startTurn() {
+    currentThinking = document.createElement('div');
+    currentThinking.className = 'thinking open';
+    currentThinking.innerHTML = `
+      <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="thinking-caret">▶</span>
+        <span class="thinking-label" style="color:var(--text-secondary);font-size:13px">Thinking…</span>
+      </div>
+      <div class="thinking-body"></div>`;
+    chatCol.appendChild(currentThinking);
+    currentAiBubble = null;
+    currentAiText = null;
+    thinkingStepCount = 0;
+    scrollBottom();
+  }
+
+  function finalizeTurn() {
+    if (currentThinking) {
+      const label = currentThinking.querySelector('.thinking-label');
+      if (label) {
+        label.textContent = thinkingStepCount > 0
+          ? `${thinkingStepCount} step${thinkingStepCount !== 1 ? 's' : ''}`
+          : 'Done';
+      }
+      currentThinking.classList.remove('open');
+      currentThinking = null;
+    }
+  }
+
+  function finalizeAiBubble() {
+    if (currentAiText) {
+      currentAiText.classList.remove('streaming');
+      currentAiBubble = null;
+      currentAiText = null;
+    }
+  }
+
+  function addTraceRow(cls, icon, summary, detail) {
+    if (!currentThinking) return;
+    thinkingStepCount++;
+    const body = currentThinking.querySelector('.thinking-body');
+
+    const detailId = `detail-${Date.now()}-${Math.random()}`;
+    const row = document.createElement('div');
+    row.className = `trace-row ${cls}`;
+    row.innerHTML = `
+      <span class="trace-icon">${icon}</span>
+      <span class="trace-summary">${escHtml(summary)}</span>`;
+    row.onclick = () => {
+      const d = document.getElementById(detailId);
+      if (d) d.classList.toggle('open');
+    };
+
+    const detailEl = document.createElement('pre');
+    detailEl.className = 'trace-detail';
+    detailEl.id = detailId;
+    detailEl.textContent = JSON.stringify(detail, null, 2);
+
+    body.appendChild(row);
+    body.appendChild(detailEl);
+    scrollBottom();
+  }
+
+  function renderProductGrid(products) {
+    const grid = document.createElement('div');
+    grid.className = 'product-grid';
+    products.forEach(p => {
+      const price = p.priceMinorUnits != null
+        ? '$' + (p.priceMinorUnits / 100).toFixed(2)
+        : (p.offers ? '$' + parseFloat(p.offers.price).toFixed(2) : '');
+      const inStock = p.inStock !== false;
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.innerHTML = `
+        <div class="product-name">${escHtml(p.name || '')}</div>
+        <div class="product-price">${price}</div>
+        <div class="product-desc">${escHtml((p.description || '').slice(0, 80))}${(p.description || '').length > 80 ? '…' : ''}</div>
+        <span class="product-badge${inStock ? '' : ' out'}">${inStock ? 'In stock' : 'Out of stock'}</span>`;
+      grid.appendChild(card);
+    });
+
+    const wrapper = document.createElement('div');
+    wrapper.style.marginLeft = '44px';
+    wrapper.appendChild(grid);
+    chatCol.appendChild(wrapper);
+    scrollBottom();
+  }
+
+  function renderPaymentCard(data) {
+    const total = ((data.total_minor_units || 0) / 100).toFixed(2);
+    const currency = data.currency || 'USD';
+    const checkoutId = data.checkout_id || '';
+    const uid = Date.now();
+
+    const card = document.createElement('div');
+    card.className = 'payment-card';
+    card.innerHTML = `
+      <div class="payment-header">
+        <span style="font-size:24px">💳</span>
+        <h3>Complete your payment</h3>
+      </div>
+      <div class="payment-total">$${total} <span style="font-size:14px;font-weight:400;color:var(--text-secondary)">${currency}</span></div>
+      <div class="payment-methods">
+        <label class="payment-option">
+          <input type="radio" name="pm_${uid}" value="visa" checked>
+          <span class="pm-brand">VISA</span>
+          <span class="pm-detail">•••• 4242 &nbsp; exp 12/28</span>
+        </label>
+        <label class="payment-option">
+          <input type="radio" name="pm_${uid}" value="mc">
+          <span class="pm-brand">MASTERCARD</span>
+          <span class="pm-detail">•••• 1234 &nbsp; exp 09/27</span>
+        </label>
+        <label class="payment-option">
+          <input type="radio" name="pm_${uid}" value="paypal">
+          <span class="pm-brand">PayPal</span>
+          <span class="pm-detail">mock@example.com</span>
+        </label>
+      </div>
+      <button class="pay-btn" id="pay-btn-${uid}" onclick="confirmPayment(this, '${checkoutId}', '${uid}')">
+        Pay $${total}
+      </button>`;
+
+    chatCol.appendChild(card);
+    scrollBottom();
+  }
+
+  async function confirmPayment(btn, checkoutId, uid) {
+    btn.disabled = true;
+    btn.textContent = 'Processing payment…';
+    btn.className = 'pay-btn processing';
+
+    startTurn();
+
+    try {
+      const resp = await fetch('/api/payment/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, checkoutId }),
+      });
+      await readSSEStream(resp);
+    } catch (err) {
+      appendAiText(`Payment error: ${err.message}`);
+      finalizeTurn();
+    }
+  }
+
+  function renderOrderCard(data) {
+    const checkout = data.checkout || {};
+    const orderId = checkout.orderId || 'N/A';
+    const total = checkout.total || {};
+    const totalDisplay = `$${((total.amount || 0) / 100).toFixed(2)}`;
+    const currency = total.currency || 'USD';
+    const items = checkout.items || [];
+
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.innerHTML = `
+      <div class="order-success">
+        <div class="order-check">✓</div>
+        <div class="order-title">Order Confirmed!</div>
+      </div>
+      <div class="order-id">Order #${escHtml(orderId)}</div>
+      <div class="order-items">
+        ${items.map(item => `
+          <div class="order-item">
+            <span>${escHtml(item.productName || '')} × ${item.quantity || 1}</span>
+            <span>$${((item.subtotalMinorUnits || 0) / 100).toFixed(2)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="order-total">
+        <span>Total</span>
+        <span>${totalDisplay} ${currency}</span>
+      </div>
+      <div class="order-delivery">📦 Estimated delivery: 4–5 business days</div>`;
+
+    chatCol.appendChild(card);
+    scrollBottom();
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  function geminiStar() {
+    return `<svg class="ai-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2.5C16 2.5 16 13.5 5 15C16 16.5 16 27.5 16 27.5C16 27.5 16 16.5 27 15C16 13.5 16 2.5 16 2.5Z"
+            fill="url(#g${Date.now()})"/>
+      <defs>
+        <linearGradient id="g${Date.now()}" x1="5" y1="15" x2="27" y2="15" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#4285f4"/>
+          <stop offset="50%" stop-color="#9c4dcc"/>
+          <stop offset="100%" stop-color="#ea4335"/>
+        </linearGradient>
+      </defs>
+    </svg>`;
+  }
+
+  function summariseArgs(args) {
+    const entries = Object.entries(args || {}).slice(0, 3);
+    return entries.map(([k, v]) => {
+      const val = typeof v === 'string' ? `"${v.slice(0, 30)}"` : JSON.stringify(v).slice(0, 30);
+      return `${k}=${val}`;
+    }).join(', ');
+  }
+
+  function summariseResult(result) {
+    if (result.error) return `error: ${result.error}`;
+    if (result.products) return `${result.products.length} product(s)`;
+    if (result.cart) return `cart ${result.cart.id ? result.cart.id.slice(0, 8) : ''}…`;
+    if (result.checkout) return `checkout [${result.checkout.status || ''}]`;
+    return 'ok';
+  }
+
+  function appendAiText(text) {
+    const el = document.createElement('div');
+    el.className = 'ai-msg';
+    el.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text">${escHtml(text)}</div></div>`;
+    chatCol.appendChild(el);
+    scrollBottom();
+  }
+
+  function escHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function scrollBottom() {
+    chatWrap.scrollTop = chatWrap.scrollHeight;
+  }
+
+  function newConversation() {
+    window.location.reload();
+  }
+</script>
+</body>
+</html>
