@@ -18,7 +18,7 @@ _SYSTEM_PROMPT = """You are a UCP Shopping Assistant — a helpful AI that shops
 WORKFLOW:
 1. DISCOVERY: When the user provides a merchant URL, discovery happens automatically. You will see a system note confirming the connection and available tools. Acknowledge it naturally.
 
-2. SEARCH: Always search the catalog before recommending products. Never invent product details. Display prices in dollars (divide minor units by 100 for USD/EUR; JPY is already whole units). Show key details: name, price, availability.
+2. SEARCH: Always search the catalog before recommending products. Never invent product details. After calling search_catalog, do NOT list or describe the products in your text — the UI renders them as cards automatically. Just say something brief like "Here's what I found — let me know which one you'd like!" and stop. Never repeat product names, prices, or IDs in your reply.
 
 3. CART: Create a cart first (the first time items are added). Remember the cart ID. Add items using the cart ID and product/merchandise ID.
 
@@ -34,6 +34,12 @@ WORKFLOW:
 ERROR HANDLING: If a tool returns an error, do NOT retry with different parameters. Report the error to the user immediately and stop. If the error mentions a connection failure, advise the user to start a new chat and connect to http://localhost:8080 for the local demo.
 
 STYLE: Be concise and conversational. When showing products, use a simple list. Do not describe your internal tool calls — just present results naturally."""
+
+_GENERAL_PROMPT = """You are a helpful shopping assistant with access to Google Search. \
+Answer product questions, compare items, give recommendations, and help users research what they want to buy. \
+Be concise and conversational. \
+If the user wants to actually purchase something, let them know they can connect to a UCP-compatible store \
+by pasting a store URL in this chat."""
 
 _URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+")
 
@@ -89,8 +95,13 @@ def _mcp_tools_to_gemini(mcp_tools: list[dict]) -> list[types.FunctionDeclaratio
     return declarations
 
 
-def _build_genai_config(merchant_tools: list[dict]) -> types.GenerateContentConfig:
-    """Build a Gemini config using the merchant's native tools + request_payment signal."""
+def _build_genai_config(merchant_tools: list[dict], has_merchant: bool) -> types.GenerateContentConfig:
+    if not has_merchant:
+        return types.GenerateContentConfig(
+            system_instruction=_GENERAL_PROMPT,
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+
     if merchant_tools:
         function_declarations = _mcp_tools_to_gemini(merchant_tools) + [REQUEST_PAYMENT_TOOL]
     else:
@@ -187,7 +198,7 @@ async def run_turn(state: ConversationState, user_message: str) -> AsyncGenerato
     state.history.append({"role": "user", "parts": [{"text": user_message}]})
 
     # Build Gemini config (uses merchant tools if available, else static UCP tools)
-    genai_config = _build_genai_config(state.merchant_tools)
+    genai_config = _build_genai_config(state.merchant_tools, has_merchant=bool(state.mcp_endpoint))
 
     # Agent loop — keep going until no more function calls (max 8 rounds)
     for _round in range(8):

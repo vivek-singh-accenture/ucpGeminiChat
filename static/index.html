@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UCP Shopping Assistant</title>
+<title>Experience the future of Commerce, now!</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -82,15 +82,6 @@
   }
   .greeting p { font-size: 15px; color: var(--text-secondary); }
 
-  /* ── URL phase chips ── */
-  .url-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
-  .url-chip {
-    border: 1px solid var(--border); border-radius: 20px;
-    padding: 8px 18px; font-size: 13px; cursor: pointer;
-    background: var(--bg); color: var(--blue); font-family: inherit;
-    transition: background 0.15s;
-  }
-  .url-chip:hover { background: var(--blue-light); }
 
   /* ── Messages ── */
   .msg-group { margin: 4px 0; }
@@ -100,8 +91,15 @@
   .ai-body { flex: 1; min-width: 0; }
   .ai-text {
     font-size: 15px; line-height: 1.7; color: var(--text);
-    white-space: pre-wrap; word-break: break-word;
+    word-break: break-word;
   }
+  .ai-text h2 { font-size: 16px; font-weight: 600; margin: 12px 0 4px; }
+  .ai-text h3 { font-size: 15px; font-weight: 600; margin: 10px 0 4px; }
+  .ai-text ul { padding-left: 20px; margin: 4px 0; list-style: disc; }
+  .ai-text li { margin: 3px 0; }
+  .ai-text p { margin: 4px 0; }
+  .ai-text strong { font-weight: 600; }
+  .ai-text em { font-style: italic; }
   .ai-text.streaming::after {
     content: '▋';
     animation: blink 0.85s step-start infinite;
@@ -192,11 +190,32 @@
   .product-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
   .product-price { font-size: 16px; font-weight: 600; color: var(--blue); margin-bottom: 6px; }
   .product-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 8px; }
+  .product-img {
+    width: 100%; height: 140px;
+    border-radius: 8px; margin-bottom: 10px;
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .product-img img {
+    width: 100%; height: 100%;
+    object-fit: contain; padding: 8px;
+  }
+  .product-img-placeholder { font-size: 36px; }
   .product-badge {
     display: inline-block; font-size: 11px; padding: 2px 8px;
     border-radius: 12px; background: #e6f4ea; color: var(--green); font-weight: 500;
   }
   .product-badge.out { background: #fce8e6; color: var(--red); }
+  .add-to-cart-btn {
+    margin-top: 10px; width: 100%; padding: 7px 0;
+    background: var(--blue); color: #fff;
+    border: none; border-radius: 20px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: background 0.15s;
+  }
+  .add-to-cart-btn:hover { background: #1557b0; }
+  .add-to-cart-btn:disabled { background: #9aa0a6; cursor: default; }
 
   /* ── Payment card ── */
   .payment-card {
@@ -275,21 +294,6 @@
   }
   .order-delivery { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
 
-  /* ── Suggestion chips ── */
-  .chips-wrap {
-    padding: 8px 16px;
-    display: flex; gap: 8px; flex-wrap: wrap;
-    flex-shrink: 0;
-    border-top: 1px solid transparent;
-  }
-  .chip {
-    border: 1px solid var(--border); border-radius: 18px;
-    padding: 6px 14px; font-size: 13px; cursor: pointer;
-    background: var(--bg); color: var(--text);
-    font-family: inherit; transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .chip:hover { background: var(--surface); }
 
   /* ── Input bar ── */
   .input-area {
@@ -346,7 +350,7 @@
       </defs>
     </svg>
     <div>
-      <div class="header-logo">UCP Shopping Assistant</div>
+      <div class="header-logo">Experience the future of Commerce, now!</div>
       <div class="header-subtitle">Powered by Gemini · Universal Commerce Protocol</div>
     </div>
   </div>
@@ -379,27 +383,16 @@
       </div>
       <h1>Hello! Let's go shopping.</h1>
       <p>Paste the URL of a UCP-compatible store, and I'll help you find products,<br>manage your cart, and complete checkout — all in one conversation.</p>
-      <div class="url-chips">
-        <button class="url-chip" onclick="sendMessage('http://localhost:8080')">http://localhost:8080 (local demo)</button>
-      </div>
     </div>
 
   </div>
 </div>
 
-<!-- Suggestion chips -->
-<div class="chips-wrap" id="chipsWrap">
-  <button class="chip" id="chip-url" onclick="sendMessage('http://localhost:8080')">Connect to local demo store</button>
-  <button class="chip" id="chip-search" onclick="sendMessage('Find me headphones')" disabled style="opacity:0.4;cursor:default">Find me headphones</button>
-  <button class="chip" id="chip-available" onclick="sendMessage('What products do you have?')" disabled style="opacity:0.4;cursor:default">What\'s available?</button>
-  <button class="chip" id="chip-cart" onclick="sendMessage('Add it to my cart')" disabled style="opacity:0.4;cursor:default">Add to cart</button>
-  <button class="chip" id="chip-checkout" onclick="sendMessage('I\'d like to checkout')" disabled style="opacity:0.4;cursor:default">Checkout</button>
-</div>
 
 <!-- Input -->
 <div class="input-area">
   <div class="input-wrap">
-    <textarea id="msgInput" placeholder="Message UCP Shopping Assistant..." rows="1"
+    <textarea id="msgInput" placeholder="Tell me what you're looking for today…" rows="1"
       onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     <button class="send-btn" id="sendBtn" onclick="submitInput()" disabled>
       <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 21L23 12 2 3v7l15 2-15 2v7z"/></svg>
@@ -422,7 +415,9 @@
   let currentThinking = null;
   let currentAiBubble = null;
   let currentAiText = null;
+  let currentAiRaw = '';
   let thinkingStepCount = 0;
+  let suppressText = false;
 
   msgInput.addEventListener('input', () => {
     sendBtn.disabled = !msgInput.value.trim() || isStreaming;
@@ -525,13 +520,6 @@
       `GET /.well-known/ucp → ${caps} capabilities (UCP ${data.ucpVersion || ''})`,
       data);
 
-    // Unlock shopping chips now that a merchant is connected
-    ['chip-search','chip-available','chip-cart','chip-checkout'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; }
-    });
-    const urlChip = document.getElementById('chip-url');
-    if (urlChip) urlChip.style.display = 'none';
   }
 
   function handleIntersection(data) {
@@ -559,18 +547,22 @@
     const products = result.products;
     if (Array.isArray(products) && products.length > 0 && data.name === 'search_catalog') {
       renderProductGrid(products);
+      suppressText = true;
     }
   }
 
   function handleText(data) {
+    if (suppressText) return;
     if (!currentAiBubble) {
+      currentAiRaw = '';
       currentAiBubble = document.createElement('div');
       currentAiBubble.className = 'ai-msg';
       currentAiBubble.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text streaming"></div></div>`;
       chatCol.appendChild(currentAiBubble);
       currentAiText = currentAiBubble.querySelector('.ai-text');
     }
-    currentAiText.textContent += data.chunk || '';
+    currentAiRaw += data.chunk || '';
+    currentAiText.innerHTML = renderMarkdown(currentAiRaw);
     scrollBottom();
   }
 
@@ -589,6 +581,7 @@
   function handleDone() {
     finalizeAiBubble();
     finalizeTurn();
+    suppressText = false;
     isStreaming = false;
     sendBtn.disabled = !msgInput.value.trim();
   }
@@ -670,17 +663,27 @@
     const grid = document.createElement('div');
     grid.className = 'product-grid';
     products.forEach(p => {
-      const price = p.priceMinorUnits != null
-        ? '$' + (p.priceMinorUnits / 100).toFixed(2)
-        : (p.offers ? '$' + parseFloat(p.offers.price).toFixed(2) : '');
-      const inStock = p.inStock !== false;
+      const price = getProductPrice(p);
+      const inStock = isInStock(p);
       const card = document.createElement('div');
       card.className = 'product-card';
+      const imgUrl = getProductImage(p);
+      const imgHtml = imgUrl
+        ? `<img src="${escHtml(imgUrl)}" alt="${escHtml(p.name || '')}" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'product-img-placeholder\\'>🛍</span>'">`
+        : `<span class="product-img-placeholder">🛍</span>`;
       card.innerHTML = `
+        <div class="product-img">${imgHtml}</div>
         <div class="product-name">${escHtml(p.name || '')}</div>
         <div class="product-price">${price}</div>
         <div class="product-desc">${escHtml((p.description || '').slice(0, 80))}${(p.description || '').length > 80 ? '…' : ''}</div>
         <span class="product-badge${inStock ? '' : ' out'}">${inStock ? 'In stock' : 'Out of stock'}</span>`;
+      if (inStock) {
+        const btn = document.createElement('button');
+        btn.className = 'add-to-cart-btn';
+        btn.textContent = 'Add to cart';
+        btn.addEventListener('click', () => sendMessage(`Add "${p.name}" to my cart`));
+        card.appendChild(btn);
+      }
       grid.appendChild(card);
     });
 
@@ -783,6 +786,45 @@
     scrollBottom();
   }
 
+  // ── Markdown renderer ───────────────────────────────────────────────────────
+
+  function inlineMarkdown(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  }
+
+  function renderMarkdown(text) {
+    const lines = text.split('\n');
+    let html = '';
+    let inList = false;
+
+    for (const line of lines) {
+      if (/^### /.test(line)) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += `<h3>${inlineMarkdown(line.slice(4))}</h3>`;
+      } else if (/^## /.test(line)) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += `<h2>${inlineMarkdown(line.slice(3))}</h2>`;
+      } else if (/^# /.test(line)) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += `<h2>${inlineMarkdown(line.slice(2))}</h2>`;
+      } else if (/^[\*\-] /.test(line)) {
+        if (!inList) { html += '<ul>'; inList = true; }
+        html += `<li>${inlineMarkdown(line.slice(2))}</li>`;
+      } else if (line.trim() === '') {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += '<br>';
+      } else {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += `<p>${inlineMarkdown(line)}</p>`;
+      }
+    }
+    if (inList) html += '</ul>';
+    return html;
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   function geminiStar() {
@@ -797,6 +839,84 @@
         </linearGradient>
       </defs>
     </svg>`;
+  }
+
+  function getProductPrice(p) {
+    // Plain minor units field
+    if (typeof p.priceMinorUnits === 'number') return '$' + (p.priceMinorUnits / 100).toFixed(2);
+    // Plain number/string field
+    if (typeof p.price === 'number') return '$' + p.price.toFixed(2);
+    if (typeof p.price === 'string' && !isNaN(parseFloat(p.price))) return '$' + parseFloat(p.price).toFixed(2);
+    // Price object
+    if (p.price && typeof p.price === 'object') {
+      const raw = p.price.amount ?? p.price.value ?? p.price.regular ?? p.price.current;
+      if (raw != null) {
+        const num = parseFloat(raw);
+        // If amount looks like minor units (e.g. 59900 for $599), divide by 100
+        return '$' + (num > 1000 && Number.isInteger(num) ? (num / 100).toFixed(2) : num.toFixed(2));
+      }
+      if (typeof p.price.formatted === 'string') return p.price.formatted;
+    }
+    // Offers fallback
+    if (p.offers) return '$' + parseFloat(p.offers.price).toFixed(2);
+    console.log('could not parse price:', p.price);
+    return '';
+  }
+
+  function isInStock(p) {
+    // Nested availability object: {in_stock: bool} or {inStock: bool}
+    if (p.availability && typeof p.availability === 'object') {
+      const v = p.availability.in_stock ?? p.availability.inStock ?? p.availability.available;
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'string') return /in.?stock|^available$|^true$/i.test(v);
+      if (typeof p.availability.status === 'string') return /in.?stock|available/i.test(p.availability.status);
+    }
+    // Scalar fields
+    for (const key of ['inStock', 'in_stock', 'available', 'isAvailable', 'is_available', 'instock']) {
+      const v = p[key];
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'string') return /in.?stock|^available$|^true$/i.test(v);
+      if (typeof v === 'number') return v > 0;
+    }
+    for (const key of ['stockQuantity', 'stock_quantity', 'inventoryQuantity', 'quantity', 'stock', 'qty']) {
+      if (typeof p[key] === 'number') return p[key] > 0;
+    }
+    if (p.inventory && typeof p.inventory.quantity === 'number') return p.inventory.quantity > 0;
+    return true;
+  }
+
+  function getProductImage(p) {
+    // Try known scalar field names
+    for (const key of ['imageUrl','image_url','thumbnailUrl','thumbnail_url','image',
+                       'thumbnail','photo','photoUrl','picture','pictureUrl',
+                       'featuredImage','featured_image','primaryImage','primary_image']) {
+      const v = p[key];
+      if (typeof v === 'string' && v.startsWith('http')) return v;
+      if (v && typeof v === 'object') {
+        if (typeof v.url === 'string') return v.url;
+        if (typeof v.src === 'string') return v.src;
+      }
+    }
+    // Try known array field names
+    for (const key of ['images','photos','pictures','media']) {
+      const arr = p[key];
+      if (Array.isArray(arr) && arr.length > 0) {
+        const first = arr[0];
+        if (typeof first === 'string') return first;
+        if (first && typeof first.url === 'string') return first.url;
+        if (first && typeof first.src === 'string') return first.src;
+      }
+    }
+    // Last resort: scan all string values for image-like URLs
+    for (const [k, v] of Object.entries(p)) {
+      if (typeof v === 'string' && v.startsWith('http') &&
+          /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(v)) {
+        console.log('product image found in field:', k, v);
+        return v;
+      }
+    }
+    console.log('no image found in product keys:', Object.keys(p));
+    return null;
   }
 
   function summariseArgs(args) {
@@ -818,7 +938,7 @@
   function appendAiText(text) {
     const el = document.createElement('div');
     el.className = 'ai-msg';
-    el.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text">${escHtml(text)}</div></div>`;
+    el.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text">${renderMarkdown(text)}</div></div>`;
     chatCol.appendChild(el);
     scrollBottom();
   }
