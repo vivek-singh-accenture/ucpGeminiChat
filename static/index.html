@@ -217,6 +217,36 @@
   .add-to-cart-btn:hover { background: #1557b0; }
   .add-to-cart-btn:disabled { background: #9aa0a6; cursor: default; }
 
+  /* ── Expand more products ── */
+  .expand-btn {
+    display: flex; align-items: center; gap: 6px;
+    margin: 8px 0 4px;
+    background: none; border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 14px;
+    font-size: 13px; color: var(--blue); cursor: pointer;
+    font-family: inherit; transition: background 0.15s;
+  }
+  .expand-btn:hover { background: var(--blue-light); }
+  .expand-btn .expand-caret { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+  .expand-btn.open .expand-caret { transform: rotate(180deg); }
+  .extra-products-grid { display: none; margin-top: 8px; }
+  .extra-products-grid.open { display: grid; }
+
+  /* ── Out-of-stock text list ── */
+  .oos-section {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .oos-section strong { color: var(--text); font-weight: 500; }
+  .oos-list { margin: 4px 0 0; padding-left: 0; list-style: none; }
+  .oos-list li { padding: 2px 0; }
+  .oos-list li::before { content: "• "; color: var(--red); }
+
   /* ── Payment card ── */
   .payment-card {
     border: 1px solid var(--border);
@@ -659,37 +689,74 @@
     scrollBottom();
   }
 
+  function buildProductCard(p) {
+    const price = getProductPrice(p);
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    const imgUrl = getProductImage(p);
+    const imgHtml = imgUrl
+      ? `<img src="${escHtml(imgUrl)}" alt="${escHtml(p.name || '')}" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'product-img-placeholder\\'>🛍</span>'">`
+      : `<span class="product-img-placeholder">🛍</span>`;
+    card.innerHTML = `
+      <div class="product-img">${imgHtml}</div>
+      <div class="product-name">${escHtml(p.name || '')}</div>
+      <div class="product-price">${price}</div>
+      <div class="product-desc">${escHtml((p.description || '').slice(0, 80))}${(p.description || '').length > 80 ? '…' : ''}</div>
+      <span class="product-badge">In stock</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'add-to-cart-btn';
+    btn.textContent = 'Add to cart';
+    btn.addEventListener('click', () => sendMessage(`Add "${p.name}" to my cart`));
+    card.appendChild(btn);
+    return card;
+  }
+
   function renderProductGrid(products) {
-    const grid = document.createElement('div');
-    grid.className = 'product-grid';
-    products.forEach(p => {
-      const price = getProductPrice(p);
-      const inStock = isInStock(p);
-      const card = document.createElement('div');
-      card.className = 'product-card';
-      const imgUrl = getProductImage(p);
-      const imgHtml = imgUrl
-        ? `<img src="${escHtml(imgUrl)}" alt="${escHtml(p.name || '')}" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'product-img-placeholder\\'>🛍</span>'">`
-        : `<span class="product-img-placeholder">🛍</span>`;
-      card.innerHTML = `
-        <div class="product-img">${imgHtml}</div>
-        <div class="product-name">${escHtml(p.name || '')}</div>
-        <div class="product-price">${price}</div>
-        <div class="product-desc">${escHtml((p.description || '').slice(0, 80))}${(p.description || '').length > 80 ? '…' : ''}</div>
-        <span class="product-badge${inStock ? '' : ' out'}">${inStock ? 'In stock' : 'Out of stock'}</span>`;
-      if (inStock) {
-        const btn = document.createElement('button');
-        btn.className = 'add-to-cart-btn';
-        btn.textContent = 'Add to cart';
-        btn.addEventListener('click', () => sendMessage(`Add "${p.name}" to my cart`));
-        card.appendChild(btn);
-      }
-      grid.appendChild(card);
-    });
+    const inStock = products.filter(p => isInStock(p));
+    const outOfStock = products.filter(p => !isInStock(p));
 
     const wrapper = document.createElement('div');
     wrapper.style.marginLeft = '44px';
-    wrapper.appendChild(grid);
+
+    if (inStock.length > 0) {
+      const topThree = inStock.slice(0, 3);
+      const rest = inStock.slice(3);
+
+      const grid = document.createElement('div');
+      grid.className = 'product-grid';
+      topThree.forEach(p => grid.appendChild(buildProductCard(p)));
+      wrapper.appendChild(grid);
+
+      if (rest.length > 0) {
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'expand-btn';
+        expandBtn.innerHTML = `<span class="expand-caret">▼</span> Show ${rest.length} more in-stock product${rest.length !== 1 ? 's' : ''}`;
+
+        const extraGrid = document.createElement('div');
+        extraGrid.className = 'extra-products-grid product-grid';
+        rest.forEach(p => extraGrid.appendChild(buildProductCard(p)));
+
+        expandBtn.addEventListener('click', () => {
+          const isOpen = extraGrid.classList.toggle('open');
+          expandBtn.classList.toggle('open', isOpen);
+          expandBtn.querySelector('.expand-caret').parentElement.innerHTML =
+            `<span class="expand-caret">▼</span> ${isOpen ? 'Show less' : `Show ${rest.length} more in-stock product${rest.length !== 1 ? 's' : ''}`}`;
+        });
+
+        wrapper.appendChild(expandBtn);
+        wrapper.appendChild(extraGrid);
+      }
+    }
+
+    if (outOfStock.length > 0) {
+      const oos = document.createElement('div');
+      oos.className = 'oos-section';
+      const names = outOfStock.map(p => escHtml(p.name || 'Unknown')).join('</li><li>');
+      oos.innerHTML = `<strong>There are also these products, but they are not in stock:</strong>
+        <ul class="oos-list"><li>${names}</li></ul>`;
+      wrapper.appendChild(oos);
+    }
+
     chatCol.appendChild(wrapper);
     scrollBottom();
   }
