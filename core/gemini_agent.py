@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 
 import config
+from core.keyword_config import keyword_config
 from core.session import ConversationState
 from core.ucp_client import discover, extract_mcp_endpoint, intersect
 from tools.definitions import REQUEST_PAYMENT_TOOL
@@ -139,9 +140,13 @@ def _update_state(state: ConversationState, tool_name: str, result: dict) -> Non
 async def run_turn(state: ConversationState, user_message: str) -> AsyncGenerator[str, None]:
     # Detect merchant URL on first mention
     if state.mcp_endpoint is None and state.merchant_url is None:
-        match = _URL_PATTERN.search(user_message)
-        if match:
-            state.merchant_url = match.group(0).rstrip("/.,)")
+        keyword_matched_url = keyword_config.find_url_for_message(user_message)
+        if keyword_matched_url:
+            state.merchant_url = keyword_matched_url
+        else:
+            match = _URL_PATTERN.search(user_message)
+            if match:
+                state.merchant_url = match.group(0).rstrip("/.,)")
 
     # Run UCP discovery if we have a merchant URL but no profile yet
     if state.merchant_url and state.ucp_profile is None:
