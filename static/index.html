@@ -262,6 +262,9 @@
     margin-bottom: 16px;
   }
   .payment-header h3 { font-size: 16px; font-weight: 500; }
+  .payment-order-summary { margin-bottom: 12px; }
+  .payment-order-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .payment-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
   .payment-total { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
   .payment-methods { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
   .payment-option {
@@ -544,8 +547,9 @@
     isStreaming = true;
     sendBtn.disabled = true;
 
-    // Hide greeting after first message
+    // Hide greeting and clear placeholder after first message
     if (greeting) greeting.style.display = 'none';
+    msgInput.placeholder = '';
 
     // User bubble
     appendUserMsg(text);
@@ -713,7 +717,7 @@
 
   function startTurn() {
     currentThinking = document.createElement('div');
-    currentThinking.className = 'thinking open';
+    currentThinking.className = 'thinking';
     currentThinking.innerHTML = `
       <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
         <span class="thinking-caret">▶</span>
@@ -801,6 +805,16 @@
     const inStock = products.filter(p => isInStock(p));
     const outOfStock = products.filter(p => !isInStock(p));
 
+    // Conversational intro before the product grid
+    const introCount = inStock.length + outOfStock.length;
+    const intro = document.createElement('div');
+    intro.className = 'ai-msg';
+    const introText = inStock.length > 0
+      ? `I found ${introCount} product${introCount !== 1 ? 's' : ''} for you. Here are the top picks:`
+      : `I found ${outOfStock.length} product${outOfStock.length !== 1 ? 's' : ''}, but they're currently out of stock.`;
+    intro.innerHTML = `${geminiStar()}<div class="ai-body"><div class="ai-text">${escHtml(introText)}</div></div>`;
+    chatCol.appendChild(intro);
+
     const wrapper = document.createElement('div');
     wrapper.style.marginLeft = '44px';
 
@@ -853,6 +867,53 @@
     const checkoutId = data.checkout_id || '';
     const uid = Date.now();
 
+    // Build order summary from cartState
+    const cart = cartState.rawCart || {};
+    const items = cart.items || cart.lines || cart.line_items || [];
+    const checkoutTotals = Array.isArray(cartState.rawCheckout?.totals) ? cartState.rawCheckout.totals : [];
+
+    const itemsHtml = items.map(item => {
+      const productId = item.product_id || item.productId || item.merchandiseId || item.id;
+      const product = productId ? lastSearchProducts.find(p => p.id === productId || p.merchandiseId === productId) : null;
+      const qty = item.quantity || item.qty || 1;
+      const name = item.product_name || item.productName || item.name || item.title || product?.name || '';
+      const rawPrice = item.subtotalMinorUnits ?? item.priceMinorUnits ?? item.totalMinorUnits ?? item.unit_price ?? item.unitPrice ?? item.subtotal ?? item.price ?? item.lineTotal;
+      let priceMinor = rawPrice !== undefined ? toMinorUnits(rawPrice) : 0;
+      if (!priceMinor && product) priceMinor = toMinorUnits(product.priceMinorUnits ?? product.price) * qty;
+      const imgUrl = item.image_url || item.imageUrl || (product ? getProductImage(product) : null);
+      const imgHtml = imgUrl
+        ? `<img class="cart-item-img" src="${escHtml(imgUrl)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+      const placeholderStyle = imgUrl ? 'display:none' : '';
+      return `
+        <div class="cart-item-row">
+          ${imgHtml}
+          <div class="cart-item-img-placeholder" style="${placeholderStyle}">🛍</div>
+          <div class="cart-item-info">
+            <div class="cart-item-name">${escHtml(name)}</div>
+            <div class="cart-item-qty">Qty: ${qty}</div>
+          </div>
+          <div class="cart-item-price">$${(priceMinor / 100).toFixed(2)}</div>
+        </div>`;
+    }).join('');
+
+    const labelMap = { subtotal: 'Subtotal', fulfillment: 'Shipping', tax: 'Tax', total: 'Total' };
+    const totalsHtml = checkoutTotals.map(t => {
+      const label = t.display_text || labelMap[t.type] || t.type;
+      const amt = `$${((t.amount || 0) / 100).toFixed(2)}`;
+      return t.type === 'total'
+        ? `<div class="cart-total-line"><span>${escHtml(label)}</span><span>${amt} ${escHtml(currency)}</span></div>`
+        : `<div class="cart-line"><span>${escHtml(label)}</span><span>${amt}</span></div>`;
+    }).join('');
+
+    const orderSummaryHtml = (itemsHtml || totalsHtml) ? `
+      <div class="payment-order-summary">
+        <div class="payment-order-title">Order Summary</div>
+        ${itemsHtml}
+        ${totalsHtml}
+      </div>
+      <hr class="payment-divider">` : '';
+
     const card = document.createElement('div');
     card.className = 'payment-card';
     card.innerHTML = `
@@ -860,7 +921,7 @@
         <span style="font-size:24px">💳</span>
         <h3>Complete your payment</h3>
       </div>
-      <div class="payment-total">$${total} <span style="font-size:14px;font-weight:400;color:var(--text-secondary)">${currency}</span></div>
+      ${orderSummaryHtml}
       <div class="payment-methods">
         <label class="payment-option">
           <input type="radio" name="pm_${uid}" value="visa" checked>
@@ -1188,15 +1249,35 @@
         </div>`;
     }).join('');
 
-    // Subtotal: prefer totals array entry (spec), then legacy object fields, then computed sum
-    const cartTotalEntry = findTotalEntry(cart.totals);
-    const rawTotal = cartTotalEntry?.amount ?? cart.subtotal?.amount ?? cart.total?.amount ?? cart.total ?? cart.subtotal ?? cart.totalPrice;
-    const totalMinor = (rawTotal !== undefined ? toMinorUnits(rawTotal) : 0) || computedSubtotal;
-    const totalDisplay = `$${(totalMinor / 100).toFixed(2)}`;
+    // When a checkout exists, use its totals array for the full breakdown (subtotal + shipping + tax + total)
+    const checkoutTotals = Array.isArray(cartState.rawCheckout?.totals) ? cartState.rawCheckout.totals : [];
+    let totalsHtml = '';
+    let totalMinor = 0;
+
+    if (checkoutTotals.length > 0) {
+      const labelMap = { subtotal: 'Subtotal', fulfillment: 'Shipping', tax: 'Tax', total: 'Total' };
+      totalsHtml = checkoutTotals.map(t => {
+        const label = t.display_text || labelMap[t.type] || t.type;
+        const amt = `$${((t.amount || 0) / 100).toFixed(2)}`;
+        if (t.type === 'total') {
+          totalMinor = t.amount || 0;
+          return `<div class="cart-total-line"><span>${escHtml(label)}</span><span>${amt} ${escHtml(currency)}</span></div>`;
+        }
+        return `<div class="cart-line"><span>${escHtml(label)}</span><span>${amt}</span></div>`;
+      }).join('');
+    } else {
+      // Fall back to cart subtotal when no checkout yet
+      const cartTotalEntry = findTotalEntry(cart.totals);
+      const rawTotal = cartTotalEntry?.amount ?? cart.subtotal?.amount ?? cart.total?.amount ?? cart.total ?? cart.subtotal ?? cart.totalPrice;
+      totalMinor = (rawTotal !== undefined ? toMinorUnits(rawTotal) : 0) || computedSubtotal;
+      const totalDisplay = `$${(totalMinor / 100).toFixed(2)}`;
+      totalsHtml = `
+        <div class="cart-line"><span>Subtotal</span><span>${totalDisplay}</span></div>
+        <div class="cart-total-line"><span>Total</span><span>${totalDisplay} ${escHtml(currency)}</span></div>`;
+    }
 
     const checkoutIdHtml = checkoutId
       ? `<div class="cart-checkout-id">Checkout ID: ${escHtml(checkoutId)}</div>` : '';
-    const payDisabled = checkoutId ? '' : 'disabled';
     const payClick = checkoutId
       ? `startPaymentFromCart('${checkoutId.replace(/'/g, "\\'")}',${totalMinor},'${currency}')` : '';
 
@@ -1209,8 +1290,7 @@
         Checkout Summary
       </div>
       ${itemsHtml}
-      <div class="cart-line"><span>Subtotal</span><span>${totalDisplay}</span></div>
-      <div class="cart-total-line"><span>Total</span><span>${totalDisplay} ${escHtml(currency)}</span></div>
+      ${totalsHtml}
       ${checkoutIdHtml}
       <div class="cart-actions">
         <button class="cart-btn cart-btn-secondary"
