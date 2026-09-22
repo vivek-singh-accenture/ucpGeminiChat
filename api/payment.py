@@ -29,39 +29,37 @@ async def confirm_payment(body: PaymentConfirmRequest):
 
     async def event_stream():
         try:
-            # Use merchant's actual tool name (ucpAdaptor: checkout_complete; others may differ)
-            tool_names = {t["name"] for t in (state.merchant_tools or [])}
-            if "complete_checkout" in tool_names:
-                complete_tool = "complete_checkout"
-                complete_args = {"id": body.checkoutId}
-            else:
-                complete_tool = "checkout_complete"
-                complete_args = {"checkoutId": body.checkoutId}
-
             result = await mcp_bridge.call_tool(
                 state.mcp_endpoint,
-                complete_tool,
-                complete_args,
+                "complete_checkout",
+                {"id": body.checkoutId},
             )
 
             checkout = result.get("checkout", {})
+            order = result.get("order", {})
+
             if checkout.get("status") == "completed":
                 state.checkout_status = "completed"
 
-            # Resolve orderId from multiple possible locations in the result
+            # Extract order ID from the order object (spec: order is in response when completed)
             order_id = (
-                checkout.get("orderId")
-                or checkout.get("orderNumber")
-                or result.get("orderId")
-                or result.get("orderNumber")
-                or checkout.get("id")
+                order.get("id")
+                or checkout.get("order_id")
+                or checkout.get("orderId")
                 or "N/A"
             )
 
-            # Fall back to state for total (captured during checkout update)
-            raw_total = checkout.get("total", {})
-            total_amount = raw_total.get("amount") or state.checkout_total_minor or 0
-            total_currency = raw_total.get("currency") or state.checkout_currency or "USD"
+            # Total from order or checkout totals (spec: array of {type, amount})
+            def _find_total(totals):
+                if isinstance(totals, list):
+                    return next((t for t in totals if t.get("type") == "total"), {})
+                elif isinstance(totals, dict):
+                    return totals.get("total") or {}
+                return {}
+
+            total_obj = _find_total(order.get("totals", [])) or _find_total(checkout.get("totals", []))
+            total_amount = total_obj.get("amount") or state.checkout_total_minor or 0
+            total_currency = order.get("currency") or checkout.get("currency") or state.checkout_currency or "USD"
 
             if checkout.get("status") == "completed":
                 total_display = f"${total_amount / 100:.2f} {total_currency}"
@@ -77,6 +75,10 @@ async def confirm_payment(body: PaymentConfirmRequest):
                     **checkout,
                     "orderId": order_id,
                     "total": {"amount": total_amount, "currency": total_currency},
+                },
+                "order": {
+                    **order,
+                    "id": order_id,
                 },
             }
             yield _sse("order_confirmed", normalized)
