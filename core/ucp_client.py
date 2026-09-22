@@ -4,6 +4,7 @@ CLIENT_CAPABILITIES = [
     "dev.ucp.shopping.catalog.search",
     "dev.ucp.shopping.cart",
     "dev.ucp.shopping.checkout",
+    "dev.ucp.shopping.order",
 ]
 
 

@@ -653,9 +653,9 @@
     const cart = result.cart || {};
     const checkout = result.checkout || {};
 
-    if (cart.id || cart.items || cart.lines) {
+    if (cart.id || cart.items || cart.lines || cart.line_items) {
       cartState.rawCart = cart;
-      const items = cart.items || cart.lines || [];
+      const items = cart.items || cart.lines || cart.line_items || [];
       if (items.length > 0) renderCartSummary();
     }
 
@@ -1131,14 +1131,16 @@
     }
 
     const cart = cartState.rawCart || {};
-    const items = cart.items || cart.lines || [];
+    const items = cart.items || cart.lines || cart.line_items || [];
     const checkoutId = cartState.checkoutId;
 
-    // Determine cart currency (snake_case: currency_code; camelCase: currency)
-    const currency = cart.subtotal?.currency_code || cart.total?.currency_code
-                  || cart.total?.currency || cart.currency_code || cart.currency
-                  || cartState.rawCheckout?.total?.currency_code
-                  || cartState.rawCheckout?.total?.currency || 'USD';
+    // Determine cart currency (UCP spec: top-level currency field)
+    const findTotalEntry = (totals, type = 'total') =>
+      Array.isArray(totals) ? (totals.find(t => t.type === type) || null) : null;
+    const currency = cart.currency || cart.currency_code
+                  || cartState.rawCheckout?.currency
+                  || findTotalEntry(cartState.rawCheckout?.totals)?.currency
+                  || cart.subtotal?.currency || 'USD';
 
     // Build item rows, falling back to lastSearchProducts for image/name/price
     let computedSubtotal = 0;
@@ -1166,7 +1168,8 @@
       }
       computedSubtotal += priceMinor;
 
-      const imgUrl = product ? getProductImage(product) : null;
+      // Image: prefer item.image_url (now included by ucpAdaptor), fall back to search results
+      const imgUrl = item.image_url || item.imageUrl || (product ? getProductImage(product) : null);
       const imgHtml = imgUrl
         ? `<img class="cart-item-img" src="${escHtml(imgUrl)}" alt=""
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -1185,8 +1188,9 @@
         </div>`;
     }).join('');
 
-    // Total: prefer cart.total.amount, then cart.subtotal, then sum of items
-    const rawTotal = cart.total?.amount ?? cart.total ?? cart.subtotal ?? cart.totalPrice;
+    // Subtotal: prefer totals array entry (spec), then legacy object fields, then computed sum
+    const cartTotalEntry = findTotalEntry(cart.totals);
+    const rawTotal = cartTotalEntry?.amount ?? cart.subtotal?.amount ?? cart.total?.amount ?? cart.total ?? cart.subtotal ?? cart.totalPrice;
     const totalMinor = (rawTotal !== undefined ? toMinorUnits(rawTotal) : 0) || computedSubtotal;
     const totalDisplay = `$${(totalMinor / 100).toFixed(2)}`;
 

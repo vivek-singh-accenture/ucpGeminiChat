@@ -40,88 +40,171 @@ SEARCH_CATALOG = types.FunctionDeclaration(
     ),
 )
 
-CART_CREATE = types.FunctionDeclaration(
-    name="cart_create",
-    description="Create a new shopping cart. Call this exactly once per conversation before adding any items. Returns a cartId.",
-    parameters=Schema(type=Type.OBJECT, properties={}),
-)
-
-CART_ADD_ITEM = types.FunctionDeclaration(
-    name="cart_add_item",
-    description="Add a product to the cart. Requires the cartId from cart_create and the productId from search_catalog.",
+CREATE_CART = types.FunctionDeclaration(
+    name="create_cart",
+    description=(
+        "Create a new shopping cart, optionally with initial items. "
+        "Returns a cart ID. Call this before adding items."
+    ),
     parameters=Schema(
         type=Type.OBJECT,
         properties={
-            "cartId": Schema(type=Type.STRING, description="Cart ID returned by cart_create"),
-            "productId": Schema(type=Type.STRING, description="Product ID from search_catalog results"),
-            "quantity": Schema(type=Type.INTEGER, description="Number of units to add (default 1)"),
+            "line_items": Schema(
+                type=Type.ARRAY,
+                items=Schema(
+                    type=Type.OBJECT,
+                    properties={
+                        "product_id": Schema(type=Type.STRING, description="Product ID from search_catalog"),
+                        "quantity": Schema(type=Type.INTEGER, description="Number of units"),
+                    },
+                    required=["product_id", "quantity"],
+                ),
+                description="Optional initial items to add to the cart",
+            ),
         },
-        required=["cartId", "productId", "quantity"],
     ),
 )
 
-CART_GET = types.FunctionDeclaration(
-    name="cart_get",
+GET_CART = types.FunctionDeclaration(
+    name="get_cart",
     description="Retrieve the current contents and total of a cart.",
     parameters=Schema(
         type=Type.OBJECT,
-        properties={"cartId": Schema(type=Type.STRING, description="Cart ID returned by cart_create")},
-        required=["cartId"],
+        properties={"id": Schema(type=Type.STRING, description="Cart ID returned by create_cart")},
+        required=["id"],
     ),
 )
 
-CART_REMOVE_ITEM = types.FunctionDeclaration(
-    name="cart_remove_item",
-    description="Remove a product line from the cart.",
-    parameters=Schema(
-        type=Type.OBJECT,
-        properties={
-            "cartId": Schema(type=Type.STRING, description="Cart ID returned by cart_create"),
-            "productId": Schema(type=Type.STRING, description="Product ID to remove"),
-        },
-        required=["cartId", "productId"],
-    ),
-)
-
-CHECKOUT_CREATE = types.FunctionDeclaration(
-    name="checkout_create",
-    description="Create a checkout session from the cart. Returns a checkoutId to use in checkout_update and checkout_complete.",
-    parameters=Schema(
-        type=Type.OBJECT,
-        properties={"cartId": Schema(type=Type.STRING, description="Cart ID returned by cart_create")},
-        required=["cartId"],
-    ),
-)
-
-CHECKOUT_UPDATE = types.FunctionDeclaration(
-    name="checkout_update",
+UPDATE_CART = types.FunctionDeclaration(
+    name="update_cart",
     description=(
-        "Set the buyer's email address and/or shipping address on a checkout. "
-        "When BOTH buyerEmail AND shippingAddress are provided, the checkout transitions to "
-        "ready_for_complete status. Always collect both before calling this."
+        "Update item quantities in the cart. Set quantity to 0 to remove an item. "
+        "Items not in line_items are unchanged."
     ),
     parameters=Schema(
         type=Type.OBJECT,
         properties={
-            "checkoutId": Schema(type=Type.STRING, description="Checkout ID returned by checkout_create"),
-            "buyerEmail": Schema(type=Type.STRING, description="Buyer's email address"),
-            "shippingAddress": Schema(type=Type.STRING, description="Full shipping address as a single string, e.g. '123 Main St, Springfield, IL 62701'"),
+            "id": Schema(type=Type.STRING, description="Cart ID returned by create_cart"),
+            "line_items": Schema(
+                type=Type.ARRAY,
+                items=Schema(
+                    type=Type.OBJECT,
+                    properties={
+                        "product_id": Schema(type=Type.STRING, description="Product ID to update"),
+                        "quantity": Schema(type=Type.INTEGER, description="New quantity (0 to remove)"),
+                    },
+                    required=["product_id", "quantity"],
+                ),
+                description="Items to update",
+            ),
         },
-        required=["checkoutId"],
+        required=["id", "line_items"],
     ),
 )
 
-CHECKOUT_COMPLETE = types.FunctionDeclaration(
-    name="checkout_complete",
+CREATE_CHECKOUT = types.FunctionDeclaration(
+    name="create_checkout",
+    description=(
+        "Create a checkout session from the cart. Returns a checkout ID. "
+        "Optionally include buyer email and shipping address to pre-populate."
+    ),
+    parameters=Schema(
+        type=Type.OBJECT,
+        properties={
+            "checkout": Schema(
+                type=Type.OBJECT,
+                properties={
+                    "cart_id": Schema(type=Type.STRING, description="Cart ID from create_cart"),
+                    "buyer": Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "email": Schema(type=Type.STRING, description="Buyer email address"),
+                            "first_name": Schema(type=Type.STRING),
+                            "last_name": Schema(type=Type.STRING),
+                        },
+                    ),
+                    "shipping_address": Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "line1": Schema(type=Type.STRING, description="Street address line 1"),
+                            "line2": Schema(type=Type.STRING, description="Apt, suite, etc. (optional)"),
+                            "city": Schema(type=Type.STRING),
+                            "state": Schema(type=Type.STRING, description="State or province"),
+                            "postal_code": Schema(type=Type.STRING),
+                            "country": Schema(type=Type.STRING, description="ISO 3166-1 alpha-2 country code, e.g. US"),
+                        },
+                        required=["line1", "city", "state", "postal_code", "country"],
+                    ),
+                },
+                required=["cart_id"],
+            ),
+        },
+        required=["checkout"],
+    ),
+)
+
+UPDATE_CHECKOUT = types.FunctionDeclaration(
+    name="update_checkout",
+    description=(
+        "Update buyer info and/or shipping address on a checkout. "
+        "When both buyer.email and a complete shipping_address are present, "
+        "status becomes ready_for_complete and payment can be requested."
+    ),
+    parameters=Schema(
+        type=Type.OBJECT,
+        properties={
+            "id": Schema(type=Type.STRING, description="Checkout ID from create_checkout"),
+            "checkout": Schema(
+                type=Type.OBJECT,
+                properties={
+                    "buyer": Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "email": Schema(type=Type.STRING, description="Buyer email address"),
+                            "first_name": Schema(type=Type.STRING),
+                            "last_name": Schema(type=Type.STRING),
+                        },
+                    ),
+                    "shipping_address": Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "line1": Schema(type=Type.STRING),
+                            "line2": Schema(type=Type.STRING),
+                            "city": Schema(type=Type.STRING),
+                            "state": Schema(type=Type.STRING),
+                            "postal_code": Schema(type=Type.STRING),
+                            "country": Schema(type=Type.STRING),
+                        },
+                        required=["line1", "city", "state", "postal_code", "country"],
+                    ),
+                },
+            ),
+        },
+        required=["id"],
+    ),
+)
+
+COMPLETE_CHECKOUT = types.FunctionDeclaration(
+    name="complete_checkout",
     description=(
         "Complete the checkout and place the order. "
         "Only call this AFTER request_payment has been shown and the user has confirmed payment. "
-        "The checkout must be in ready_for_complete status."
+        "The checkout must be in ready_for_complete status. Returns status=completed with order."
     ),
     parameters=Schema(
         type=Type.OBJECT,
-        properties={"checkoutId": Schema(type=Type.STRING, description="Checkout ID returned by checkout_create")},
-        required=["checkoutId"],
+        properties={"id": Schema(type=Type.STRING, description="Checkout ID from create_checkout")},
+        required=["id"],
+    ),
+)
+
+GET_ORDER = types.FunctionDeclaration(
+    name="get_order",
+    description="Retrieve a placed order by ID. Returns order details including line items and totals in minor units (cents).",
+    parameters=Schema(
+        type=Type.OBJECT,
+        properties={"id": Schema(type=Type.STRING, description="Order ID from complete_checkout response")},
+        required=["id"],
     ),
 )
 
@@ -130,14 +213,14 @@ REQUEST_PAYMENT_TOOL = types.FunctionDeclaration(
     description=(
         "Signal that the checkout is ready for payment. Call this when checkout status is "
         "'ready_for_complete'. This triggers the payment UI in the browser. "
-        "Do NOT call checkout_complete yourself — the payment system handles that."
+        "Do NOT call complete_checkout yourself — the payment system handles that."
     ),
     parameters=Schema(
         type=Type.OBJECT,
         properties={
             "total_minor_units": Schema(type=Type.INTEGER, description="Total amount in minor units (cents)"),
             "currency": Schema(type=Type.STRING, description="ISO 4217 currency code, e.g. USD"),
-            "checkout_id": Schema(type=Type.STRING, description="The checkoutId to complete after payment"),
+            "checkout_id": Schema(type=Type.STRING, description="The checkout ID to complete after payment"),
         },
         required=["total_minor_units", "currency", "checkout_id"],
     ),
@@ -147,12 +230,12 @@ REQUEST_PAYMENT = REQUEST_PAYMENT_TOOL
 
 UCP_TOOLS = [
     SEARCH_CATALOG,
-    CART_CREATE,
-    CART_ADD_ITEM,
-    CART_GET,
-    CART_REMOVE_ITEM,
-    CHECKOUT_CREATE,
-    CHECKOUT_UPDATE,
-    CHECKOUT_COMPLETE,
+    CREATE_CART,
+    GET_CART,
+    UPDATE_CART,
+    CREATE_CHECKOUT,
+    UPDATE_CHECKOUT,
+    COMPLETE_CHECKOUT,
+    GET_ORDER,
     REQUEST_PAYMENT,
 ]

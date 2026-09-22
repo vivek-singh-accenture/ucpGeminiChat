@@ -21,16 +21,16 @@ WORKFLOW:
 
 2. SEARCH: Always search the catalog before recommending products. Never invent product details. After calling search_catalog, do NOT list or describe the products in your text — the UI renders them as cards automatically. Just say something brief like "Here's what I found — let me know which one you'd like!" and stop. Never repeat product names, prices, or IDs in your reply.
 
-3. CART: Create a cart first (the first time items are added). Remember the cart ID. Add items using the cart ID and product/merchandise ID.
+3. CART: Call create_cart (optionally with line_items) to start a cart. Remember the cart ID. Use update_cart to change quantities or remove items (quantity=0 removes).
 
 4. CHECKOUT:
    a. When the user wants to checkout, ask for their email address and full shipping address if not already provided.
-   b. Create a checkout using the cart ID.
-   c. Update the checkout with buyer email and shipping address.
-   d. When the response shows the checkout is ready to complete, call request_payment with the total and checkout ID.
-   e. Do NOT complete the checkout yourself — the payment UI handles that.
+   b. Call create_checkout with the cart_id and buyer + shipping_address if available.
+   c. If those were not provided yet, call update_checkout with the id and checkout object containing buyer email and shipping_address.
+   d. When the response shows status=ready_for_complete, call request_payment with total_minor_units, currency, and checkout_id. Prices are in minor units (cents), so a total of 95000 means $950.00.
+   e. Do NOT call complete_checkout yourself — the payment UI calls it after the user confirms payment.
 
-5. After payment succeeds, the order confirmation will appear automatically.
+5. After payment succeeds, the order confirmation will appear automatically. You can call get_order with the order ID to retrieve order details.
 
 ERROR HANDLING: If a tool returns an error, do NOT retry with different parameters. Report the error to the user immediately and stop. If the error mentions a connection failure, advise the user to start a new chat and connect to http://localhost:8080 for the local demo.
 
@@ -118,21 +118,30 @@ def _update_state(state: ConversationState, tool_name: str, result: dict) -> Non
     checkout = result.get("checkout", {})
     cart = result.get("cart", {})
 
-    if cart.get("id"):
-        state.cart_id = cart["id"]
-    if checkout.get("id"):
-        state.checkout_id = checkout["id"]
+    # Support both "id" (spec) and legacy "cart_id"/"checkout_id" field names
+    cart_id = cart.get("id") or cart.get("cart_id")
+    if cart_id:
+        state.cart_id = cart_id
+
+    checkout_id = checkout.get("id") or checkout.get("checkout_id")
+    if checkout_id:
+        state.checkout_id = checkout_id
+
     if checkout.get("status"):
         state.checkout_status = checkout["status"]
 
-    total = checkout.get("total", {})
-    if total.get("amount") is not None:
-        state.checkout_total_minor = total["amount"]
-    if total.get("currency"):
-        state.checkout_currency = total["currency"]
-
-    if result.get("cartId") and not state.cart_id:
-        state.cart_id = result["cartId"]
+    # Amounts are in checkout.totals (spec: array of {type, amount})
+    totals = checkout.get("totals", [])
+    if isinstance(totals, list):
+        total_obj = next((t for t in totals if t.get("type") == "total"), {})
+        if total_obj.get("amount") is not None:
+            state.checkout_total_minor = total_obj["amount"]
+    elif isinstance(totals, dict):
+        total_obj = totals.get("total", {})
+        if total_obj.get("amount") is not None:
+            state.checkout_total_minor = total_obj["amount"]
+    if checkout.get("currency"):
+        state.checkout_currency = checkout["currency"]
 
 
 async def run_turn(state: ConversationState, user_message: str) -> AsyncGenerator[str, None]:
