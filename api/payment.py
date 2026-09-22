@@ -48,16 +48,38 @@ async def confirm_payment(body: PaymentConfirmRequest):
             if checkout.get("status") == "completed":
                 state.checkout_status = "completed"
 
-                # Add order confirmation to conversation history
-                order_id = checkout.get("orderId", "N/A")
-                total = checkout.get("total", {})
-                total_display = f"${total.get('amount', 0) / 100:.2f} {total.get('currency', 'USD')}"
+            # Resolve orderId from multiple possible locations in the result
+            order_id = (
+                checkout.get("orderId")
+                or checkout.get("orderNumber")
+                or result.get("orderId")
+                or result.get("orderNumber")
+                or checkout.get("id")
+                or "N/A"
+            )
+
+            # Fall back to state for total (captured during checkout update)
+            raw_total = checkout.get("total", {})
+            total_amount = raw_total.get("amount") or state.checkout_total_minor or 0
+            total_currency = raw_total.get("currency") or state.checkout_currency or "USD"
+
+            if checkout.get("status") == "completed":
+                total_display = f"${total_amount / 100:.2f} {total_currency}"
                 state.history.append({
                     "role": "model",
                     "parts": [{"text": f"Your order has been placed! Order ID: {order_id}. Total: {total_display}. Thank you for shopping!"}],
                 })
 
-            yield _sse("order_confirmed", result)
+            # Emit normalized payload the frontend can reliably read
+            normalized = {
+                **result,
+                "checkout": {
+                    **checkout,
+                    "orderId": order_id,
+                    "total": {"amount": total_amount, "currency": total_currency},
+                },
+            }
+            yield _sse("order_confirmed", normalized)
         except Exception as exc:
             yield _sse("order_confirmed", {"error": str(exc)})
 

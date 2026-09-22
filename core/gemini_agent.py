@@ -38,9 +38,7 @@ STYLE: Be concise and conversational. When showing products, use a simple list. 
 
 _GENERAL_PROMPT = """You are a helpful shopping assistant with access to Google Search. \
 Answer product questions, compare items, give recommendations, and help users research what they want to buy. \
-Be concise and conversational. \
-If the user wants to actually purchase something, let them know they can connect to a UCP-compatible store \
-by pasting a store URL in this chat."""
+Be concise and conversational."""
 
 _URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+")
 
