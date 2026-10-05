@@ -503,6 +503,66 @@
   .send-btn:disabled { background: var(--surface); opacity: 0.5; cursor: default; }
   .send-btn svg { fill: #fff; }
   .send-btn:disabled svg { fill: var(--text-secondary); }
+
+  /* Brand-site confirmation modal */
+  .bco-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+  .bco-dialog {
+    background: #fff; border-radius: 16px; padding: 0; max-width: 400px;
+    width: 92%; box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+    overflow: hidden;
+  }
+  .bco-header {
+    background: #1428A0; padding: 20px 24px 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .bco-samsung-logo {
+    height: 22px; filter: brightness(0) invert(1);
+  }
+  .bco-header-title {
+    color: #fff; font-size: 13px; font-weight: 500; opacity: 0.85; letter-spacing: 0.02em;
+  }
+  .bco-body { padding: 20px 24px 24px; }
+  .bco-reassure {
+    font-size: 14px; color: #1428A0; font-weight: 600;
+    background: #f0f3ff; border-radius: 8px; padding: 10px 14px;
+    margin-bottom: 16px; line-height: 1.45;
+  }
+  .bco-cart-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    color: #80868b; text-transform: uppercase; margin-bottom: 8px; }
+  .bco-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .bco-item {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .bco-item-img {
+    width: 44px; height: 44px; object-fit: contain; border-radius: 8px;
+    background: #f8f9fa; border: 1px solid #e8eaed; flex-shrink: 0;
+  }
+  .bco-item-ph {
+    width: 44px; height: 44px; border-radius: 8px; background: #f1f3f4;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+  }
+  .bco-item-name { font-size: 13px; font-weight: 500; color: var(--text);
+    flex: 1; line-height: 1.3; }
+  .bco-item-meta { font-size: 11px; color: #80868b; margin-top: 2px; }
+  .bco-item-price { font-size: 13px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+  .bco-divider { border: none; border-top: 1px solid #e8eaed; margin: 12px 0; }
+  .bco-total { display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 18px; }
+  .bco-total-amt { color: #1428A0; }
+  .bco-actions { display: flex; gap: 10px; }
+  .bco-btn {
+    flex: 1; padding: 11px 0; border-radius: 10px; font-size: 14px;
+    font-weight: 600; cursor: pointer; border: none; font-family: inherit;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .bco-cancel { background: #f1f3f4; color: var(--text); }
+  .bco-cancel:hover { background: #e8eaed; }
+  .bco-confirm { background: #1428A0; color: #fff; }
+  .bco-confirm:hover { opacity: 0.88; }
 </style>
 </head>
 <body>
@@ -582,6 +642,7 @@
 
 <script>
   const conversationId = crypto.randomUUID();
+  let merchantUrl = null;
   let isStreaming = false;
 
   // DOM refs
@@ -701,6 +762,7 @@
   // ── Event handlers ──────────────────────────────────────────────────────────
 
   function handleDiscovery(data) {
+    if (data.merchantUrl) merchantUrl = data.merchantUrl;
     const caps = (data.storeCapabilities || []).length;
     addTraceRow('trace-ucp', '🔍',
       `GET /.well-known/ucp → ${caps} capabilities (UCP ${data.ucpVersion || ''})`,
@@ -1521,8 +1583,9 @@
       ${totalsHtml}
       ${checkoutIdHtml}
       <div class="cart-actions">
-        <button class="cart-btn cart-btn-secondary"
-          onclick="sendMessage('Proceed to checkout')">Checkout</button>
+        <button class="cart-btn cart-btn-secondary" onclick="openBrandSite()">Checkout</button>
+        <button class="cart-btn cart-btn-primary"
+          onclick="sendMessage('Proceed to checkout')">Payment</button>
       </div>`;
 
     scrollBottom();
@@ -1532,9 +1595,92 @@
     renderPaymentCard({ total_minor_units: totalMinor, currency, checkout_id: checkoutId });
   }
 
+  function openBrandSite() {
+    // Build cart snapshot for the modal
+    const cart = cartState.rawCart || {};
+    const items = cart.items || cart.lines || cart.line_items || [];
+    const currency = cart.currency || cartState.rawCheckout?.currency || 'USD';
+
+    const itemsHtml = items.map(item => {
+      const productId = item.product_id || item.productId || item.merchandiseId || item.id;
+      const product = productId
+        ? lastSearchProducts.find(p => p.id === productId || p.merchandiseId === productId)
+        : null;
+      const name = item.product_name || item.productName || item.name || item.title || product?.name || 'Item';
+      const qty = item.quantity || item.qty || 1;
+      const rawPrice = item.subtotalMinorUnits ?? item.priceMinorUnits ?? item.totalMinorUnits
+                    ?? item.unit_price ?? item.unitPrice ?? item.subtotal ?? item.price ?? 0;
+      const priceMinor = toMinorUnits(rawPrice) || (toMinorUnits(product?.priceMinorUnits ?? product?.price ?? 0) * qty);
+      const imgUrl = item.image_url || item.imageUrl || (product ? getProductImage(product) : null);
+      const imgTag = imgUrl
+        ? `<img class="bco-item-img" src="${escHtml(imgUrl)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+      const ph = `<div class="bco-item-ph" style="${imgUrl ? 'display:none' : ''}">🛍</div>`;
+      return `<div class="bco-item">
+        ${imgTag}${ph}
+        <div style="flex:1;min-width:0">
+          <div class="bco-item-name">${escHtml(name)}</div>
+          <div class="bco-item-meta">Qty: ${qty}</div>
+        </div>
+        <div class="bco-item-price">$${(priceMinor / 100).toFixed(2)}</div>
+      </div>`;
+    }).join('');
+
+    // Total
+    const checkoutTotals = Array.isArray(cartState.rawCheckout?.totals) ? cartState.rawCheckout.totals : [];
+    let totalMinor = 0;
+    if (checkoutTotals.length) {
+      const t = checkoutTotals.find(t => t.type === 'total');
+      totalMinor = t?.amount || 0;
+    } else {
+      const cartTotalEntry = Array.isArray(cart.totals) ? (cart.totals.find(t => t.type === 'total') || null) : null;
+      const raw = cartTotalEntry?.amount ?? cart.subtotal?.amount ?? cart.total?.amount ?? cart.total ?? cart.subtotal ?? 0;
+      totalMinor = toMinorUnits(raw);
+    }
+
+    const cartSection = items.length ? `
+      <div class="bco-cart-label">Your cart</div>
+      <div class="bco-items">${itemsHtml}</div>
+      <hr class="bco-divider">
+      <div class="bco-total"><span>Total</span><span class="bco-total-amt">$${(totalMinor / 100).toFixed(2)} ${escHtml(currency)}</span></div>` : '';
+
+    document.getElementById('bco-dynamic').innerHTML = cartSection;
+    document.getElementById('brand-checkout-modal').style.display = 'flex';
+  }
+  function closeBrandModal() {
+    document.getElementById('brand-checkout-modal').style.display = 'none';
+  }
+  function confirmBrandCheckout() {
+    closeBrandModal();
+    const url = merchantUrl || '';
+    if (url) window.open(url, '_blank');
+  }
+
   function newConversation() {
     window.location.reload();
   }
 </script>
+
+<div id="brand-checkout-modal" class="bco-overlay" style="display:none" onclick="if(event.target===this)closeBrandModal()">
+  <div class="bco-dialog">
+    <div class="bco-header">
+      <!-- Samsung wordmark as inline SVG so it works without external assets -->
+      <svg class="bco-samsung-logo" viewBox="0 0 230 40" xmlns="http://www.w3.org/2000/svg" aria-label="Samsung">
+        <text y="32" font-family="Arial,sans-serif" font-size="36" font-weight="700" fill="white" letter-spacing="-1">SAMSUNG</text>
+      </svg>
+      <div class="bco-header-title">Official Samsung Store</div>
+    </div>
+    <div class="bco-body">
+      <div class="bco-reassure">
+        Don't worry — we'll help you prepare your cart on the Samsung site so you can pick up right where you left off.
+      </div>
+      <div id="bco-dynamic"></div>
+      <div class="bco-actions">
+        <button class="bco-btn bco-cancel" onclick="closeBrandModal()">Cancel</button>
+        <button class="bco-btn bco-confirm" onclick="confirmBrandCheckout()">Go to Samsung</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
