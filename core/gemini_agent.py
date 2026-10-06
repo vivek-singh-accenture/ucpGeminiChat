@@ -279,6 +279,17 @@ async def run_turn(state: ConversationState, user_message: str) -> AsyncGenerato
                     result = {"error": str(exc)}
 
             yield _sse("tool_result", {"name": fc.name, "result": result})
+
+            # Intercept checkout escalation — merchant wants user to complete on their storefront
+            checkout_data = result.get("checkout") or {}
+            continue_url = checkout_data.get("continue_url")
+            if continue_url:
+                yield _sse("checkout_redirect", {
+                    "url": continue_url,
+                    "label": "Checkout on Electronics Store",
+                })
+                yield _sse("done", {})
+                return
             tool_response_parts.append({
                 "function_response": {
                     "name": fc.name,

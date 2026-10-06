@@ -504,6 +504,24 @@
   .send-btn svg { fill: #fff; }
   .send-btn:disabled svg { fill: var(--text-secondary); }
 
+  /* ── Checkout redirect button (SAP / storefront handoff) ── */
+  .checkout-redirect-wrap {
+    margin: 10px 0 4px 44px;
+  }
+  .checkout-redirect-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px; border-radius: 24px;
+    background: #0071e3; color: #fff;
+    font-size: 15px; font-weight: 600; font-family: inherit;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .checkout-redirect-btn:hover { background: #005bbf; }
+  .checkout-redirect-note {
+    font-size: 12px; color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
   /* Brand-site confirmation modal */
   .bco-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.55);
@@ -753,9 +771,10 @@
       case 'tool_use':         handleToolUse(data); break;
       case 'tool_result':      handleToolResult(data); break;
       case 'text':             handleText(data); break;
-      case 'payment_request':  handlePaymentRequest(data); break;
-      case 'order_confirmed':  handleOrderConfirmed(data); break;
-      case 'done':             handleDone(); break;
+      case 'payment_request':    handlePaymentRequest(data); break;
+      case 'order_confirmed':    handleOrderConfirmed(data); break;
+      case 'checkout_redirect':  handleCheckoutRedirect(data); break;
+      case 'done':               handleDone(); break;
     }
   }
 
@@ -840,6 +859,22 @@
 
   function handleOrderConfirmed(data) {
     renderOrderCard(data);
+    scrollBottom();
+  }
+
+  function handleCheckoutRedirect(data) {
+    finalizeAiBubble();
+    const url = data.url || '';
+    const label = data.label || 'Checkout on Store';
+    const wrap = document.createElement('div');
+    wrap.className = 'checkout-redirect-wrap';
+    wrap.innerHTML = `
+      <a href="${escHtml(url)}" target="_blank" rel="noopener noreferrer"
+         class="checkout-redirect-btn">
+        ${escHtml(label)} &#8599;
+      </a>
+      <div class="checkout-redirect-note">Opens the store checkout in a new tab</div>`;
+    chatCol.appendChild(wrap);
     scrollBottom();
   }
 
@@ -1672,7 +1707,7 @@
     </div>
     <div class="bco-body">
       <div class="bco-reassure">
-        Don't worry — we'll help you prepare your cart on the Samsung site so you can pick up right where you left off.
+        We'll prepare your cart on the Samsung site so you can pick up right where you left off.
       </div>
       <div id="bco-dynamic"></div>
       <div class="bco-actions">
