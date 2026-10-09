@@ -10,6 +10,9 @@ PORT = int(os.getenv("PORT", "8000"))
 # PUBLIC_URL: set to your ngrok/deployment URL when testing with external merchants.
 # External merchants will try to fetch this URL to validate the UCP agent profile.
 PUBLIC_URL = os.getenv("PUBLIC_URL", f"http://localhost:{PORT}").rstrip("/")
+# SECRET_TOKEN: when set, gates all routes except /ucp/profile and /login behind a session cookie.
+# Leave empty for local dev (no auth).
+SECRET_TOKEN = os.getenv("SECRET_TOKEN", "")
 
 if not GOOGLE_API_KEY:
     print("ERROR: GOOGLE_API_KEY environment variable is required.", file=sys.stderr)

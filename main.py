@@ -3,13 +3,18 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 import config
+from api.auth import router as auth_router
 from api.chat import router as chat_router
 from api.config import router as config_router
 from api.payment import router as payment_router
 from api.profile import router as profile_router
+from middleware.auth import TokenAuthMiddleware
 
 app = FastAPI(title="UCP Gemini Chat", version="1.0.0")
 
+app.add_middleware(TokenAuthMiddleware)
+
+app.include_router(auth_router)
 app.include_router(chat_router, prefix="/api")
 app.include_router(payment_router, prefix="/api")
 app.include_router(profile_router)
