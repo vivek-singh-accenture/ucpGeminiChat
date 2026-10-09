@@ -7,6 +7,7 @@ from mcp.client.streamable_http import streamable_http_client
 import config
 
 _TIMEOUT = 15.0
+_MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
 
 
 def _agent_profile_url() -> str:
@@ -31,7 +32,7 @@ async def list_tools(mcp_endpoint: str) -> list[dict]:
         async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = await client.post(mcp_endpoint, json={
                 "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
-            })
+            }, headers=_MCP_HEADERS)
             resp.raise_for_status()
             data = resp.json()
             return data.get("result", {}).get("tools", [])
@@ -74,7 +75,7 @@ async def _call_tool_jsonrpc(mcp_endpoint: str, tool_name: str, tool_args: dict)
         resp = await client.post(mcp_endpoint, json={
             "jsonrpc": "2.0", "id": 1, "method": "tools/call",
             "params": {"name": tool_name, "arguments": args},
-        })
+        }, headers=_MCP_HEADERS)
         resp.raise_for_status()
 
         data = resp.json()

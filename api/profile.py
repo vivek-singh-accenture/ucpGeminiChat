@@ -26,4 +26,7 @@ _AGENT_PROFILE = {
 
 @router.get("/ucp/profile")
 async def agent_profile():
-    return JSONResponse(content=_AGENT_PROFILE)
+    return JSONResponse(
+        content=_AGENT_PROFILE,
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
